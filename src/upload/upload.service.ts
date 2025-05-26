@@ -1,17 +1,28 @@
 import { Injectable } from '@nestjs/common';
 import { promises as fs } from 'fs';
 import { PrismaService } from '../prisma/prisma.service';
+import { QueueService } from '../queue/queue.service';
 
 @Injectable()
 export class UploadService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private queueService: QueueService
+  ) {}
 
-  async saveFileMetadata(file: Express.Multer.File, userId: string) {
+  async saveFileMetadata(
+    file: Express.Multer.File, 
+    userId: string, 
+    title?: string, 
+    description?: string
+  ) {
     const savedFile = await this.prisma.file.create({
       data: {
         userId: parseInt(userId),
         originalFilename: file.originalname,
         storagePath: file.path,
+        title: title || null,
+        description: description || null,
         status: 'uploaded',
       },
       include: {
@@ -24,6 +35,14 @@ export class UploadService {
       },
     });
 
+    // Add background job for file processing with file ID
+    await this.queueService.addFileProcessingJob({
+      filename: file.filename,
+      filepath: file.path,
+      userId: userId,
+      fileId: savedFile.id.toString(),
+    });
+
     return {
       id: savedFile.id.toString(),
       originalName: savedFile.originalFilename,
@@ -31,6 +50,8 @@ export class UploadService {
       path: savedFile.storagePath,
       size: file.size,
       mimetype: file.mimetype,
+      title: savedFile.title,
+      description: savedFile.description,
       uploadedAt: savedFile.uploadedAt,
       userId: savedFile.userId.toString(),
       status: savedFile.status,
@@ -61,6 +82,48 @@ export class UploadService {
       userId: file.userId.toString(),
       status: file.status,
       user: file.user,
+    };
+  }
+
+  async getFileWithJobs(id: string) {
+    const file = await this.prisma.file.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+          },
+        },
+        jobs: {
+          orderBy: {
+            startedAt: 'desc',
+          },
+        },
+      },
+    });
+
+    if (!file) return null;
+
+    return {
+      id: file.id.toString(),
+      originalName: file.originalFilename,
+      path: file.storagePath,
+      title: file.title,
+      description: file.description,
+      status: file.status,
+      extractedData: file.extractedData ? JSON.parse(file.extractedData) : null,
+      uploadedAt: file.uploadedAt,
+      userId: file.userId.toString(),
+      user: file.user,
+      jobs: file.jobs.map(job => ({
+        id: job.id.toString(),
+        jobType: job.jobType,
+        status: job.status,
+        errorMessage: job.errorMessage,
+        startedAt: job.startedAt,
+        completedAt: job.completedAt,
+      })),
     };
   }
 

@@ -10,6 +10,9 @@ import {
   Request,
   Res,
   NotFoundException,
+  Body,
+  ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
@@ -23,14 +26,25 @@ export class UploadController {
   @UseGuards(JwtAuthGuard)
   @Post('file')
   @UseInterceptors(FileInterceptor('file'))
-  async uploadFile(@UploadedFile() file: Express.Multer.File, @Request() req) {
+  async uploadFile(
+    @UploadedFile() file: Express.Multer.File, 
+    @Request() req,
+    @Body() metadata?: { title?: string; description?: string }
+  ) {
     if (!file) {
-      throw new Error('No file uploaded');
+      throw new BadRequestException('No file uploaded');
     }
 
-    const uploadedFile = await this.uploadService.saveFileMetadata(file, req.user.sub);
+    const uploadedFile = await this.uploadService.saveFileMetadata(
+      file, 
+      req.user.sub, 
+      metadata?.title, 
+      metadata?.description
+    );
     
     return {
+      fileId: uploadedFile.id,
+      status: 'uploaded',
       message: 'File uploaded successfully',
       file: uploadedFile,
     };
@@ -43,48 +57,26 @@ export class UploadController {
     return { files };
   }
 
-  @UseGuards(JwtAuthGuard)
-  @Get('file/:id')
-  async downloadFile(@Param('id') id: string, @Res() res: Response) {
-    const file = await this.uploadService.getFileById(id);
-    
-    if (!file) {
-      throw new NotFoundException('File not found');
-    }
 
-    res.setHeader('Content-Disposition', `attachment; filename="${file.originalName}"`);
-    // Set a default content type since we don't store mimetype in database
-    res.setHeader('Content-Type', 'application/octet-stream');
-    
-    return res.sendFile(file.path, { root: '.' });
-  }
 
   @UseGuards(JwtAuthGuard)
-  @Delete('file/:id')
-  async deleteFile(@Param('id') id: string, @Request() req) {
-    const file = await this.uploadService.getFileById(id);
+  @Get('files/:id')
+  async getFileStatus(@Param('id') id: string, @Request() req) {
+    const fileWithJobs = await this.uploadService.getFileWithJobs(id);
     
-    if (!file) {
+    if (!fileWithJobs) {
       throw new NotFoundException('File not found');
     }
 
     // Check if user owns the file
-    if (file.userId !== req.user.sub) {
-      throw new Error('Unauthorized to delete this file');
+    if (fileWithJobs.userId !== req.user.sub) {
+      throw new ForbiddenException('You are not authorized to access this file');
     }
 
-    const deleted = await this.uploadService.deleteFile(id);
-    
-    if (!deleted) {
-      throw new Error('Failed to delete file');
-    }
-
-    return { message: 'File deleted successfully' };
+    return fileWithJobs;
   }
 
-  @Get('files/all')
-  async getAllFiles() {
-    const files = await this.uploadService.getAllFiles();
-    return { files };
-  }
+
+
+
 } 

@@ -6,6 +6,7 @@ export interface FileProcessingJobData {
   filename: string;
   filepath: string;
   userId: string;
+  fileId?: string;
 }
 
 @Injectable()

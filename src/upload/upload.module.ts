@@ -5,10 +5,12 @@ import { extname } from 'path';
 import { UploadController } from './upload.controller';
 import { UploadService } from './upload.service';
 import { AuthModule } from '../auth/auth.module';
+import { QueueModule } from '../queue/queue.module';
 
 @Module({
   imports: [
     AuthModule,
+    QueueModule,
     MulterModule.register({
       storage: diskStorage({
         destination: './uploads',
@@ -20,9 +22,7 @@ import { AuthModule } from '../auth/auth.module';
         },
       }),
       fileFilter: (req, file, callback) => {
-        if (!file.originalname.match(/\.(jpg|jpeg|png|gif|pdf|doc|docx)$/)) {
-          return callback(new Error('Only image and document files are allowed!'), false);
-        }
+        // Remove file type restrictions to allow any file type
         callback(null, true);
       },
       limits: {

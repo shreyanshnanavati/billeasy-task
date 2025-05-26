@@ -3,10 +3,13 @@ import { BullModule } from '@nestjs/bull';
 import { QueueService } from './queue.service';
 import { QueueController } from './queue.controller';
 import { AuthModule } from '../auth/auth.module';
+import { FileProcessingProcessor } from './file-processing.processor';
+import { PrismaModule } from '../prisma/prisma.module';
 
 @Module({
   imports: [
     AuthModule,
+    PrismaModule,
     BullModule.forRoot({
       redis: {
         host: process.env.REDIS_HOST || 'localhost',
@@ -19,7 +22,7 @@ import { AuthModule } from '../auth/auth.module';
     }),
   ],
   controllers: [QueueController],
-  providers: [QueueService],
+  providers: [QueueService, FileProcessingProcessor],
   exports: [QueueService],
 })
 export class QueueModule {} 

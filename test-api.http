@@ -31,76 +31,55 @@ Content-Type: application/json
 
 # Get user profile (replace with actual token)
 GET http://localhost:3000/auth/profile
-Authorization: Bearer YOUR_JWT_TOKEN_HERE
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyIiwiZW1haWwiOiJ0ZXN0QGV4YW1wbGUuY29tIiwiaWF0IjoxNzQ4MjY0NjQ2LCJleHAiOjE3NDgzNTEwNDZ9.cZ1Y2GTvRr2ruwKXnBKfiIqgeBOQiuF00o4ox3-yjjY
 
 ###
 
-### Test Queue Endpoints
-
-# Add email job to queue
-POST http://localhost:3000/queue/email
-Content-Type: application/json
-Authorization: Bearer YOUR_JWT_TOKEN_HERE
-
-{
-  "to": "recipient@example.com",
-  "subject": "Test Email",
-  "body": "This is a test email from the queue system"
-}
-
-###
-
-# Add file processing job to queue
-POST http://localhost:3000/queue/file-processing
-Content-Type: application/json
-Authorization: Bearer YOUR_JWT_TOKEN_HERE
-
-{
-  "filename": "test-document.pdf",
-  "filepath": "/uploads/test-document.pdf",
-  "userId": "1"
-}
-
-###
-
-# Check email queue status
-GET http://localhost:3000/queue/status/email
-
-###
-
-# Check file processing queue status
-GET http://localhost:3000/queue/status/file-processing
-
-###
 
 ### Test File Upload Endpoints
 
 # Upload a file (use form-data in your HTTP client)
 POST http://localhost:3000/upload/file
-Authorization: Bearer YOUR_JWT_TOKEN_HERE
-Content-Type: multipart/form-data
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyIiwiZW1haWwiOiJ0ZXN0QGV4YW1wbGUuY29tIiwiaWF0IjoxNzQ4MjY0NjQ2LCJleHAiOjE3NDgzNTEwNDZ9.cZ1Y2GTvRr2ruwKXnBKfiIqgeBOQiuF00o4ox3-yjjY
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
 
-# Note: Add a file field named 'file' with your test file
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="test.txt"
+Content-Type: text/plain
+
+This is a test file content.
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="title"
+
+My Test Document
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="description"
+
+This is a test document for API testing
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### File Upload without metadata 
+POST http://localhost:3000/upload/file
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyIiwiZW1haWwiOiJ0ZXN0QGV4YW1wbGUuY29tIiwiaWF0IjoxNzQ4MjY0NjQ2LCJleHAiOjE3NDgzNTEwNDZ9.cZ1Y2GTvRr2ruwKXnBKfiIqgeBOQiuF00o4ox3-yjjY
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="simple.txt"
+Content-Type: text/plain
+
+Simple file without metadata.
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
 
 ###
 
 # Get user's uploaded files
 GET http://localhost:3000/upload/files
-Authorization: Bearer YOUR_JWT_TOKEN_HERE
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyIiwiZW1haWwiOiJ0ZXN0QGV4YW1wbGUuY29tIiwiaWF0IjoxNzQ4MjY0NjQ2LCJleHAiOjE3NDgzNTEwNDZ9.cZ1Y2GTvRr2ruwKXnBKfiIqgeBOQiuF00o4ox3-yjjY
 
 ###
 
-# Get all uploaded files (public endpoint)
-GET http://localhost:3000/upload/files/all
+# Check file processing status (replace FILE_ID_HERE with actual file ID)
+GET http://localhost:3000/upload/files/5
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyIiwiZW1haWwiOiJ0ZXN0QGV4YW1wbGUuY29tIiwiaWF0IjoxNzQ4MjY0NjQ2LCJleHAiOjE3NDgzNTEwNDZ9.cZ1Y2GTvRr2ruwKXnBKfiIqgeBOQiuF00o4ox3-yjjY
 
 ###
-
-# Download a specific file (replace :id with actual file ID)
-GET http://localhost:3000/upload/file/FILE_ID_HERE
-Authorization: Bearer YOUR_JWT_TOKEN_HERE
-
-###
-
-# Delete a specific file (replace :id with actual file ID)
-DELETE http://localhost:3000/upload/file/FILE_ID_HERE
-Authorization: Bearer YOUR_JWT_TOKEN_HERE 
