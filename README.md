@@ -1,98 +1,201 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# BillEasy Task - File Processing API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A NestJS application with JWT authentication, file upload, and background job processing using Redis/BullMQ.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
-
-## Description
-
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
+## Quick Start
 
 ```bash
-$ npm install
+# Install dependencies
+npm install
+
+# Setup environment
+cp .env.example .env  # Edit JWT_SECRET and other configs
+
+# Setup database
+npx prisma generate
+npx prisma migrate dev --name init
+
+# Start Redis (required for background jobs)
+redis-server
+
+# Run the application
+npm run start:dev
 ```
 
-## Compile and run the project
+Application runs at `http://localhost:3000`
+
+## Environment Setup
+
+Create `.env` file:
+
+```env
+DATABASE_URL="file:./prisma/dev.db"
+JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+REDIS_HOST=localhost
+REDIS_PORT=6379
+NODE_ENV=development
+PORT=3000
+```
+
+## API Documentation
+
+> 📖 **For detailed API documentation with request/response examples, see [API_DOCUMENTATION.md](./API_DOCUMENTATION.md)**
+
+### Authentication Flow
+
+**Register:**
+```bash
+POST /auth/register
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "password123"
+}
+```
+
+**Login:**
+```bash
+POST /auth/login
+Content-Type: application/json
+
+{
+  "email": "user@example.com", 
+  "password": "password123"
+}
+```
+
+**Protected Routes:**
+```bash
+GET /auth/profile
+Authorization: Bearer <jwt_token>
+```
+
+### File Management
+
+**Upload File:**
+```bash
+POST /upload/file
+Authorization: Bearer <jwt_token>
+Content-Type: multipart/form-data
+
+# Form fields: file, title (optional), description (optional)
+```
+
+**Get Files:**
+```bash
+GET /upload/files
+Authorization: Bearer <jwt_token>
+```
+
+**Get File Details:**
+```bash
+GET /upload/files/:id
+Authorization: Bearer <jwt_token>
+```
+
+**Health Check:**
+```bash
+GET /health
+```
+
+## Architecture & Design Choices
+
+**Tech Stack:**
+- **Framework:** NestJS with TypeScript
+- **Database:** SQLite with Prisma ORM
+- **Authentication:** JWT (custom implementation)
+- **File Upload:** Multer
+- **Background Jobs:** BullMQ + Redis
+- **Validation:** class-validator
+
+**Key Patterns:**
+- Modular architecture (Auth, Upload, Queue modules)
+- Dependency injection via NestJS
+- JWT guards for route protection
+- Background job processors for async operations
+- Repository pattern via Prisma service
+
+## Database Schema
+
+```sql
+-- Users: id, email, password, created_at
+-- Files: id, user_id, original_filename, storage_path, title, description, status, extracted_data, uploaded_at
+-- Jobs: id, file_id, job_type, status, error_message, started_at, completed_at
+```
+
+**Relationships:**
+- User → Files (1:many)
+- File → Jobs (1:many)
+
+## Background Job Processing
+
+**Workflow:**
+1. File uploaded → Job queued in Redis
+2. Worker processes file asynchronously
+3. Extracts metadata, text content, file hash
+4. Updates database with processing status
+5. Stores extracted data
+
+**Features:**
+- Retry logic with exponential backoff
+- Real-time status tracking
+- Error handling and logging
+- Scalable worker processes
+
+## Known Limitations
+
+**Current:**
+- Local file storage (not cloud)
+- Simulated text extraction
+- 5MB file size limit
+- SQLite database (single-file)
+- No rate limiting
+
+**Production Considerations:**
+- Migrate to PostgreSQL/MySQL
+- Implement cloud storage (S3)
+- Add monitoring and logging
+- Implement rate limiting
+- Use Redis clustering
+
+## Testing
+
+**API Testing:**
+
+**Using VS Code REST Client:**
+1. Install the "REST Client" extension in VS Code
+2. Open `test-api.http` file
+3. Click "Send Request" above each HTTP request
+4. Follow the sequence: Register → Login → Copy JWT token → Update tokens in protected routes
+5. **Note:** JWT tokens in the file will expire - replace with fresh tokens from login response
+
+**Using Postman:**
+- Import `postman_collection.json` into Postman
+- Set up environment variables for base URL and JWT token
+
+**Manual cURL:**
+- Use cURL examples in API documentation above
+
+## Development Tools
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npx prisma studio     # Database GUI
+redis-cli monitor     # Redis monitoring
+npm run start:debug   # Debug mode
 ```
 
-## Run tests
+## Project Structure
 
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+```
+src/
+├── auth/           # JWT authentication
+├── upload/         # File upload & management  
+├── queue/          # Background job processing
+├── prisma/         # Database service
+└── main.ts         # Application entry point
 ```
 
-## Deployment
+---
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+**Note:** This is a demonstration project showcasing NestJS patterns. Adapt security and infrastructure for production use.
