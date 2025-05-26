@@ -1,0 +1,106 @@
+### Health Check (No Authentication Required)
+
+# Health check endpoint
+GET http://localhost:3000/health
+
+###
+
+### Test Authentication Endpoints
+
+# Register a new user
+POST http://localhost:3000/auth/register
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "password123"
+}
+
+###
+
+# Login with credentials
+POST http://localhost:3000/auth/login
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "password123"
+}
+
+###
+
+# Get user profile (replace with actual token)
+GET http://localhost:3000/auth/profile
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+###
+
+### Test Queue Endpoints
+
+# Add email job to queue
+POST http://localhost:3000/queue/email
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+{
+  "to": "recipient@example.com",
+  "subject": "Test Email",
+  "body": "This is a test email from the queue system"
+}
+
+###
+
+# Add file processing job to queue
+POST http://localhost:3000/queue/file-processing
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+{
+  "filename": "test-document.pdf",
+  "filepath": "/uploads/test-document.pdf",
+  "userId": "1"
+}
+
+###
+
+# Check email queue status
+GET http://localhost:3000/queue/status/email
+
+###
+
+# Check file processing queue status
+GET http://localhost:3000/queue/status/file-processing
+
+###
+
+### Test File Upload Endpoints
+
+# Upload a file (use form-data in your HTTP client)
+POST http://localhost:3000/upload/file
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+Content-Type: multipart/form-data
+
+# Note: Add a file field named 'file' with your test file
+
+###
+
+# Get user's uploaded files
+GET http://localhost:3000/upload/files
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+###
+
+# Get all uploaded files (public endpoint)
+GET http://localhost:3000/upload/files/all
+
+###
+
+# Download a specific file (replace :id with actual file ID)
+GET http://localhost:3000/upload/file/FILE_ID_HERE
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+###
+
+# Delete a specific file (replace :id with actual file ID)
+DELETE http://localhost:3000/upload/file/FILE_ID_HERE
+Authorization: Bearer YOUR_JWT_TOKEN_HERE 
