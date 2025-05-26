@@ -1,0 +1,183 @@
+### Enhanced API Testing with Pagination, Retry, and Rate Limiting
+
+### Variables
+@baseUrl = http://localhost:3000
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiZW1haWwiOiJ0ZXN0QGV4YW1wbGUuY29tIiwiaWF0IjoxNzQ4MjY4NzgwLCJleHAiOjE3NDgzNTUxODB9.lJhpittomxKRr2Rs-y8PQusuGbaSKKMPqrVpTm4Cbow
+
+### 0. Health Check (No Authentication Required)
+GET {{baseUrl}}/health
+
+###
+
+### 1. Login to get fresh token
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "password123"
+}
+
+###
+
+### 2. Upload a file (rate limited - 5 per minute)
+POST {{baseUrl}}/upload/file
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="title"
+
+Test Document with Pagination
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="description"
+
+This is a test document for pagination and retry features
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="test-pagination.txt"
+Content-Type: text/plain
+
+This is a test file for pagination and retry functionality.
+It contains some sample content to test the enhanced features.
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+###
+
+### 3. Get files with pagination (page 1, limit 5)
+GET {{baseUrl}}/upload/files?page=1&limit=5
+Authorization: Bearer {{token}}
+
+###
+
+### 4. Get files with pagination (page 2, limit 3)
+GET {{baseUrl}}/upload/files?page=2&limit=3
+Authorization: Bearer {{token}}
+
+###
+
+### 5. Get files with default pagination (page 1, limit 10)
+GET {{baseUrl}}/upload/files
+Authorization: Bearer {{token}}
+
+###
+
+### 6. Get failed jobs for current user
+GET {{baseUrl}}/upload/files/failed
+Authorization: Bearer {{token}}
+
+###
+
+### 7. Retry a failed job (replace FILE_ID with actual failed file ID)
+POST {{baseUrl}}/upload/files/1/retry
+Authorization: Bearer {{token}}
+
+###
+
+### 8. Check specific file processing status (replace FILE_ID with actual file ID)
+GET {{baseUrl}}/upload/files/1
+Authorization: Bearer {{token}}
+
+###
+
+### 9. Get queue status with details
+GET {{baseUrl}}/queue/status/file-processing
+
+###
+
+### 10. Get all failed jobs in queue
+GET {{baseUrl}}/queue/failed-jobs
+Authorization: Bearer {{token}}
+
+###
+
+### 11. Retry a specific job by ID (replace JOB_ID with actual job ID)
+POST {{baseUrl}}/queue/retry-job/1
+Authorization: Bearer {{token}}
+
+###
+
+### 12. Retry all failed jobs
+POST {{baseUrl}}/queue/retry-all-failed
+Authorization: Bearer {{token}}
+
+###
+
+### 13. Test rate limiting - Upload multiple files quickly (should be limited after 5 uploads)
+POST {{baseUrl}}/upload/file
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="rate-limit-test-1.txt"
+Content-Type: text/plain
+
+Rate limit test file 1
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+###
+
+POST {{baseUrl}}/upload/file
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="rate-limit-test-2.txt"
+Content-Type: text/plain
+
+Rate limit test file 2
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+###
+
+POST {{baseUrl}}/upload/file
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="rate-limit-test-3.txt"
+Content-Type: text/plain
+
+Rate limit test file 3
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+###
+
+POST {{baseUrl}}/upload/file
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="rate-limit-test-4.txt"
+Content-Type: text/plain
+
+Rate limit test file 4
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+###
+
+POST {{baseUrl}}/upload/file
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="rate-limit-test-5.txt"
+Content-Type: text/plain
+
+Rate limit test file 5
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+###
+
+# This 6th upload should be rate limited (429 Too Many Requests)
+POST {{baseUrl}}/upload/file
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="rate-limit-test-6-should-fail.txt"
+Content-Type: text/plain
+
+This upload should be rate limited
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+### 

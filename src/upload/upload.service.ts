@@ -127,31 +127,54 @@ export class UploadService {
     };
   }
 
-  async getUserFiles(userId: string) {
-    const files = await this.prisma.file.findMany({
-      where: { userId: parseInt(userId) },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
+  async getUserFiles(userId: string, page: number = 1, limit: number = 10) {
+    const skip = (page - 1) * limit;
+    
+    const [files, total] = await Promise.all([
+      this.prisma.file.findMany({
+        where: { userId: parseInt(userId) },
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+            },
           },
         },
-      },
-      orderBy: {
-        uploadedAt: 'desc',
-      },
-    });
+        orderBy: {
+          uploadedAt: 'desc',
+        },
+        skip,
+        take: limit,
+      }),
+      this.prisma.file.count({
+        where: { userId: parseInt(userId) },
+      }),
+    ]);
 
-    return files.map(file => ({
-      id: file.id.toString(),
-      originalName: file.originalFilename,
-      path: file.storagePath,
-      uploadedAt: file.uploadedAt,
-      userId: file.userId.toString(),
-      status: file.status,
-      user: file.user,
-    }));
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      files: files.map(file => ({
+        id: file.id.toString(),
+        originalName: file.originalFilename,
+        path: file.storagePath,
+        title: file.title,
+        description: file.description,
+        uploadedAt: file.uploadedAt,
+        userId: file.userId.toString(),
+        status: file.status,
+        user: file.user,
+      })),
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalItems: total,
+        itemsPerPage: limit,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    };
   }
 
   async deleteFile(id: string): Promise<boolean> {
@@ -214,5 +237,93 @@ export class UploadService {
     } catch {
       await fs.mkdir(uploadDir, { recursive: true });
     }
+  }
+
+  async retryFailedJob(fileId: string, userId: string) {
+    // Find the file and verify ownership
+    const file = await this.prisma.file.findFirst({
+      where: {
+        id: parseInt(fileId),
+        userId: parseInt(userId),
+      },
+      include: {
+        jobs: {
+          where: { status: 'failed' },
+          orderBy: { startedAt: 'desc' },
+          take: 1,
+        },
+      },
+    });
+
+    if (!file) {
+      throw new Error('File not found or access denied');
+    }
+
+    if (file.jobs.length === 0) {
+      throw new Error('No failed jobs found for this file');
+    }
+
+    // Reset file status to uploaded
+    await this.prisma.file.update({
+      where: { id: file.id },
+      data: { status: 'uploaded' },
+    });
+
+    // Add a new job for processing
+    const job = await this.queueService.addFileProcessingJob({
+      filename: file.originalFilename,
+      filepath: file.storagePath,
+      userId: userId,
+      fileId: file.id.toString(),
+    });
+
+    return {
+      message: 'Job retry initiated',
+      jobId: job.id,
+      fileId: file.id.toString(),
+    };
+  }
+
+  async getFailedJobs(userId: string) {
+    const failedFiles = await this.prisma.file.findMany({
+      where: {
+        userId: parseInt(userId),
+        status: 'failed',
+      },
+      include: {
+        jobs: {
+          where: { status: 'failed' },
+          orderBy: { startedAt: 'desc' },
+          take: 1,
+        },
+        user: {
+          select: {
+            id: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: {
+        uploadedAt: 'desc',
+      },
+    });
+
+    return failedFiles.map(file => ({
+      id: file.id.toString(),
+      originalName: file.originalFilename,
+      path: file.storagePath,
+      title: file.title,
+      description: file.description,
+      status: file.status,
+      uploadedAt: file.uploadedAt,
+      userId: file.userId.toString(),
+      user: file.user,
+      lastFailedJob: file.jobs[0] ? {
+        id: file.jobs[0].id.toString(),
+        errorMessage: file.jobs[0].errorMessage,
+        startedAt: file.jobs[0].startedAt,
+        completedAt: file.jobs[0].completedAt,
+      } : null,
+    }));
   }
 } 

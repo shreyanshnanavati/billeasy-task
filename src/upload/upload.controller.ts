@@ -13,9 +13,12 @@ import {
   Body,
   ForbiddenException,
   BadRequestException,
+  Query,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { UploadService } from './upload.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -23,7 +26,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 export class UploadController {
   constructor(private uploadService: UploadService) {}
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, ThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 uploads per minute per user
   @Post('file')
   @UseInterceptors(FileInterceptor('file'))
   async uploadFile(
@@ -52,12 +56,42 @@ export class UploadController {
 
   @UseGuards(JwtAuthGuard)
   @Get('files')
-  async getUserFiles(@Request() req) {
-    const files = await this.uploadService.getUserFiles(req.user.sub);
-    return { files };
+  async getUserFiles(
+    @Request() req,
+    @Query('page', new ParseIntPipe({ optional: true })) page: number = 1,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit: number = 10
+  ) {
+    // Validate pagination parameters
+    if (page < 1) page = 1;
+    if (limit < 1 || limit > 100) limit = 10; // Max 100 items per page
+
+    const result = await this.uploadService.getUserFiles(req.user.sub, page, limit);
+    return result;
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Get('files/failed')
+  async getFailedJobs(@Request() req) {
+    const failedJobs = await this.uploadService.getFailedJobs(req.user.sub);
+    return { failedJobs };
+  }
 
+  @UseGuards(JwtAuthGuard)
+  @Post('files/:id/retry')
+  async retryFailedJob(@Param('id') id: string, @Request() req) {
+    try {
+      const result = await this.uploadService.retryFailedJob(id, req.user.sub);
+      return result;
+    } catch (error) {
+      if (error.message === 'File not found or access denied') {
+        throw new ForbiddenException('You are not authorized to retry this job');
+      }
+      if (error.message === 'No failed jobs found for this file') {
+        throw new BadRequestException('No failed jobs found for this file');
+      }
+      throw new BadRequestException(error.message);
+    }
+  }
 
   @UseGuards(JwtAuthGuard)
   @Get('files/:id')
@@ -75,8 +109,4 @@ export class UploadController {
 
     return fileWithJobs;
   }
-
-
-
-
 } 

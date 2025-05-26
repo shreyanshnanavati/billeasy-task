@@ -1,56 +1,20 @@
 # API Documentation
 
 ## Overview
-This API provides JWT-based authentication and file upload capabilities with Multer.
+Detailed API specifications for the BillEasy Task file processing API with JWT authentication, pagination, retry mechanisms, and rate limiting.
 
-## Environment Variables
-Create a `.env` file with the following variables:
+> 💡 **Quick Start Guide**: See [README.md](./README.md) for setup instructions and feature overview.
 
-```env
-# Database
-DATABASE_URL="file:./prisma/dev.db"
-
-# JWT Configuration
-JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
-
-# Redis Configuration (for background jobs)
-REDIS_HOST=localhost
-REDIS_PORT=6379
-
-# Application Configuration
-NODE_ENV=development
-PORT=3000
+## Base URL
+```
+http://localhost:3000
 ```
 
-## Prerequisites
-- Redis server running (for background jobs)
-- Node.js and npm installed
-- SQLite (included with Node.js)
+## Authentication
 
-## Installation
-```bash
-npm install
+All protected endpoints require a JWT token in the Authorization header:
 ```
-
-## Database Setup
-```bash
-# Generate Prisma client
-npx prisma generate
-
-# Run database migrations
-npx prisma migrate dev --name init
-
-# (Optional) View database in Prisma Studio
-npx prisma studio
-```
-
-## Running the Application
-```bash
-# Development
-npm run start:dev
-
-# Production
-npm run start:prod
+Authorization: Bearer <jwt_token>
 ```
 
 ## API Endpoints
@@ -63,7 +27,10 @@ Health check endpoint (no authentication required).
 **Response:**
 ```json
 {
-  "status": "ok"
+  "status": "ok",
+  "timestamp": "2023-01-01T00:00:00.000Z",
+  "uptime": 123.456,
+  "environment": "development"
 }
 ```
 
@@ -75,7 +42,7 @@ Register a new user.
 **Request Body:**
 ```json
 {
-  "email": "test@example.com",
+  "email": "user@example.com",
   "password": "password123"
 }
 ```
@@ -83,10 +50,10 @@ Register a new user.
 **Response:**
 ```json
 {
-  "access_token": "jwt_token_here",
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "user": {
     "id": 1,
-    "email": "test@example.com",
+    "email": "user@example.com",
     "createdAt": "2023-01-01T00:00:00.000Z"
   }
 }
@@ -98,7 +65,7 @@ Login with existing credentials.
 **Request Body:**
 ```json
 {
-  "email": "test@example.com",
+  "email": "user@example.com",
   "password": "password123"
 }
 ```
@@ -106,10 +73,10 @@ Login with existing credentials.
 **Response:**
 ```json
 {
-  "access_token": "jwt_token_here",
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "user": {
     "id": 1,
-    "email": "test@example.com",
+    "email": "user@example.com",
     "createdAt": "2023-01-01T00:00:00.000Z"
   }
 }
@@ -132,10 +99,10 @@ Authorization: Bearer <jwt_token>
 }
 ```
 
-### File Upload
+### File Upload & Management
 
 #### POST /upload/file
-Upload a file (requires authentication).
+Upload a file (requires authentication, rate limited to 5 uploads per minute per user).
 
 **Headers:**
 ```
@@ -144,29 +111,89 @@ Content-Type: multipart/form-data
 ```
 
 **Form Data:**
-- `file`: The file to upload (required)
+- `file`: The file to upload (required, max 5MB)
 - `title`: Optional title for the file
 - `description`: Optional description for the file
+
+**Rate Limiting:**
+- 5 uploads per minute per user
+- Returns 429 Too Many Requests if limit exceeded
 
 **Response:**
 ```json
 {
+  "fileId": "1",
+  "status": "uploaded",
   "message": "File uploaded successfully",
   "file": {
-    "id": 1,
-    "originalFilename": "test.txt",
-    "storagePath": "uploads/file-123456789.txt",
+    "id": "1",
+    "originalName": "test.txt",
+    "filename": "file-123456789.txt",
+    "path": "uploads/file-123456789.txt",
+    "size": 1024,
+    "mimetype": "text/plain",
     "title": "My Test Document",
     "description": "This is a test document for API testing",
-    "status": "uploaded",
     "uploadedAt": "2023-01-01T00:00:00.000Z",
-    "userId": 1
+    "userId": "1",
+    "status": "uploaded",
+    "user": {
+      "id": 1,
+      "email": "test@example.com"
+    }
   }
 }
 ```
 
 #### GET /upload/files
-Get all files uploaded by the current user (requires authentication).
+Get all files uploaded by the current user with pagination (requires authentication).
+
+**Headers:**
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Query Parameters:**
+- `page`: Page number (default: 1, minimum: 1)
+- `limit`: Items per page (default: 10, minimum: 1, maximum: 100)
+
+**Examples:**
+- `GET /upload/files` - Default pagination (page 1, limit 10)
+- `GET /upload/files?page=2&limit=5` - Page 2 with 5 items per page
+- `GET /upload/files?page=1&limit=20` - Page 1 with 20 items per page
+
+**Response:**
+```json
+{
+  "files": [
+    {
+      "id": "1",
+      "originalName": "test.txt",
+      "path": "uploads/file-123456789.txt",
+      "title": "My Test Document",
+      "description": "This is a test document for API testing",
+      "uploadedAt": "2023-01-01T00:00:00.000Z",
+      "userId": "1",
+      "status": "uploaded",
+      "user": {
+        "id": 1,
+        "email": "test@example.com"
+      }
+    }
+  ],
+  "pagination": {
+    "currentPage": 1,
+    "totalPages": 3,
+    "totalItems": 25,
+    "itemsPerPage": 10,
+    "hasNextPage": true,
+    "hasPreviousPage": false
+  }
+}
+```
+
+#### GET /upload/files/failed
+Get all failed jobs for the current user (requires authentication).
 
 **Headers:**
 ```
@@ -176,20 +203,51 @@ Authorization: Bearer <jwt_token>
 **Response:**
 ```json
 {
-  "files": [
+  "failedJobs": [
     {
-      "id": 1,
-      "originalFilename": "test.txt",
-      "storagePath": "uploads/file-123456789.txt",
-      "title": "My Test Document",
-      "description": "This is a test document for API testing",
-      "status": "uploaded",
+      "id": "1",
+      "originalName": "failed-file.txt",
+      "path": "uploads/file-123456789.txt",
+      "title": "Failed Document",
+      "description": "This document failed processing",
+      "status": "failed",
       "uploadedAt": "2023-01-01T00:00:00.000Z",
-      "userId": 1
+      "userId": "1",
+      "user": {
+        "id": 1,
+        "email": "test@example.com"
+      },
+      "lastFailedJob": {
+        "id": "1",
+        "errorMessage": "Processing failed due to invalid format",
+        "startedAt": "2023-01-01T00:01:00.000Z",
+        "completedAt": "2023-01-01T00:02:00.000Z"
+      }
     }
   ]
 }
 ```
+
+#### POST /upload/files/:id/retry
+Retry a failed job for a specific file (requires authentication).
+
+**Headers:**
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Response:**
+```json
+{
+  "message": "Job retry initiated",
+  "jobId": "123",
+  "fileId": "1"
+}
+```
+
+**Error Responses:**
+- `403 Forbidden`: User doesn't own the file
+- `400 Bad Request`: No failed jobs found for this file
 
 #### GET /upload/files/:id
 Get details of a specific file (requires authentication).
@@ -202,59 +260,299 @@ Authorization: Bearer <jwt_token>
 **Response:**
 ```json
 {
-  "id": 1,
-  "originalFilename": "test.txt",
-  "storagePath": "uploads/file-123456789.txt",
+  "id": "1",
+  "originalName": "test.txt",
+  "path": "uploads/file-123456789.txt",
   "title": "My Test Document",
   "description": "This is a test document for API testing",
-  "status": "uploaded",
+  "status": "processed",
+  "extractedData": {
+    "fileHash": "abc123...",
+    "fileSize": 1024,
+    "fileType": "txt",
+    "extractedText": "File content...",
+    "processedAt": "2023-01-01T00:05:00.000Z",
+    "metadata": {
+      "originalName": "test.txt",
+      "mimeType": "text/plain",
+      "lastModified": "2023-01-01T00:00:00.000Z"
+    }
+  },
   "uploadedAt": "2023-01-01T00:00:00.000Z",
-  "userId": 1
+  "userId": "1",
+  "user": {
+    "id": 1,
+    "email": "test@example.com"
+  },
+  "jobs": [
+    {
+      "id": "1",
+      "jobType": "file-processing",
+      "status": "completed",
+      "errorMessage": null,
+      "startedAt": "2023-01-01T00:01:00.000Z",
+      "completedAt": "2023-01-01T00:05:00.000Z"
+    }
+  ]
 }
 ```
 
-## Features
+## Queue Management
 
-### JWT Authentication
-- Simple JWT-based authentication without Passport
-- Token validation middleware
-- Protected routes with `@UseGuards(JwtAuthGuard)`
-- User registration and login with database storage
-- Password hashing with bcrypt
-- Real user validation against Prisma database
+#### POST /queue/file-processing
+Manually add a file processing job (requires authentication).
 
-### File Upload (Multer)
-- File upload with optional metadata (title, description)
-- Automatic file naming with timestamps
-- File metadata storage in database via Prisma
-- User-specific file management
-- Integration with User model for file ownership
+**Headers:**
+```
+Authorization: Bearer <jwt_token>
+```
 
-### Background Jobs (BullMQ)
-- Redis-based job queues for file processing
-- Automatic job creation on file upload
-- Job status monitoring
-- Retry mechanisms with exponential backoff
+**Request Body:**
+```json
+{
+  "filename": "test.txt",
+  "filepath": "uploads/file-123456789.txt",
+  "userId": "1",
+  "fileId": "1"
+}
+```
+
+**Response:**
+```json
+{
+  "message": "File processing job added to queue",
+  "jobId": "123"
+}
+```
+
+#### GET /queue/status/file-processing
+Get file processing queue status with detailed information.
+
+**Response:**
+```json
+{
+  "queue": "file-processing",
+  "waiting": 2,
+  "active": 1,
+  "completed": 10,
+  "failed": 1,
+  "details": {
+    "waiting": [
+      {
+        "id": "124",
+        "data": {
+          "filename": "pending.txt",
+          "filepath": "uploads/file-124.txt",
+          "userId": "1"
+        }
+      }
+    ],
+    "active": [
+      {
+        "id": "123",
+        "data": {
+          "filename": "processing.txt",
+          "filepath": "uploads/file-123.txt",
+          "userId": "1"
+        }
+      }
+    ],
+    "failed": [
+      {
+        "id": "122",
+        "data": {
+          "filename": "failed.txt",
+          "filepath": "uploads/file-122.txt",
+          "userId": "1"
+        },
+        "failedReason": "File not found",
+        "attemptsMade": 3
+      }
+    ]
+  }
+}
+```
+
+#### GET /queue/failed-jobs
+Get all failed jobs in the queue (requires authentication).
+
+**Headers:**
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Response:**
+```json
+{
+  "failedJobs": [
+    {
+      "id": "122",
+      "data": {
+        "filename": "failed.txt",
+        "filepath": "uploads/file-122.txt",
+        "userId": "1"
+      },
+      "failedReason": "File not found",
+      "attemptsMade": 3,
+      "processedOn": 1640995200000,
+      "finishedOn": 1640995260000
+    }
+  ]
+}
+```
+
+#### POST /queue/retry-job/:jobId
+Retry a specific failed job by job ID (requires authentication).
+
+**Headers:**
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Response:**
+```json
+{
+  "message": "Job retry initiated",
+  "jobId": "122"
+}
+```
+
+**Error Response:**
+```json
+{
+  "error": "Job not found",
+  "success": false
+}
+```
+
+#### POST /queue/retry-all-failed
+Retry all failed jobs in the queue (requires authentication).
+
+**Headers:**
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Response:**
+```json
+{
+  "message": "Retried 3 failed jobs",
+  "count": 3
+}
+```
 
 ## Error Handling
+
 All endpoints return appropriate HTTP status codes and error messages:
 
 - `400 Bad Request`: Invalid request data
 - `401 Unauthorized`: Missing or invalid JWT token
+- `403 Forbidden`: Access denied (e.g., trying to access another user's files)
 - `404 Not Found`: Resource not found
+- `429 Too Many Requests`: Rate limit exceeded
 - `500 Internal Server Error`: Server errors
 
+### Error Response Format
+```json
+{
+  "statusCode": 400,
+  "message": "Validation failed",
+  "error": "Bad Request"
+}
+```
+
+## Rate Limiting Details
+
+### Upload Rate Limiting
+- **Limit**: 5 uploads per minute per user
+- **Scope**: Per authenticated user (based on JWT token)
+- **Reset**: Every 60 seconds
+- **Headers**: Rate limit info included in response headers
+
+### Global Rate Limiting
+- **Limit**: 10 requests per minute (default for other endpoints)
+- **Scope**: Global across all users
+- **Reset**: Every 60 seconds
+
+### Rate Limit Headers
+```
+X-RateLimit-Limit: 5
+X-RateLimit-Remaining: 3
+X-RateLimit-Reset: 1640995200
+```
+
+## Pagination Details
+
+### Query Parameters
+- `page`: Page number (integer, minimum: 1, default: 1)
+- `limit`: Items per page (integer, minimum: 1, maximum: 100, default: 10)
+
+### Pagination Response
+```json
+{
+  "pagination": {
+    "currentPage": 1,
+    "totalPages": 5,
+    "totalItems": 47,
+    "itemsPerPage": 10,
+    "hasNextPage": true,
+    "hasPreviousPage": false
+  }
+}
+```
+
+### Validation Rules
+- Invalid page numbers default to 1
+- Invalid limits default to 10
+- Maximum limit is capped at 100 items per page
+
+## File Processing Workflow
+
+1. **Upload**: File uploaded via `POST /upload/file`
+2. **Queue**: Background job automatically created
+3. **Processing**: Worker processes file (configurable processing time via environment variables)
+4. **Completion**: File status updated, extracted data stored
+5. **Retry**: Manual retry available for failed jobs
+
+### Configurable Processing Time
+The file processing time can be configured via environment variables for testing:
+- `FILE_PROCESSING_MIN_TIME`: Minimum processing time in milliseconds (default: 3000)
+- `FILE_PROCESSING_MAX_TIME`: Maximum processing time in milliseconds (default: 5000)
+
+### File Status Values
+- `uploaded`: File uploaded, processing queued
+- `processing`: File currently being processed
+- `processed`: File processing completed successfully
+- `failed`: File processing failed
+
+### Job Status Values
+- `queued`: Job waiting in queue
+- `processing`: Job currently being processed
+- `completed`: Job completed successfully
+- `failed`: Job failed (retry available)
+
 ## Security Considerations
+
 - JWT tokens expire after 24 hours
-- File uploads are restricted by type and size
+- File uploads restricted to 5MB
 - User can only access their own files
-- Environment variables should be properly configured in production
+- Rate limiting prevents abuse
+- File type validation (configurable)
+- Path traversal protection
 
 ## Testing
-Use the provided `test-api.http` file with VS Code REST Client extension:
 
-1. Install "REST Client" extension in VS Code
-2. Open `test-api.http` file
-3. Click "Send Request" above each HTTP request
-4. Follow the sequence: Register → Login → Copy JWT token → Update tokens in protected routes
-5. **Note:** JWT tokens in the file will expire - replace with fresh tokens from login response 
+Use the provided test files for comprehensive API testing:
+
+- **`test-api-enhanced.http`**: Test new features (pagination, retry, rate limiting)
+- **`test-api.http`**: Test basic functionality
+- **`postman_collection.json`**: Postman collection for API testing
+
+### Test Scenarios
+
+1. **Authentication Flow**: Register → Login → Access protected routes
+2. **File Upload**: Upload files with metadata
+3. **Pagination**: Test different page sizes and navigation
+4. **Rate Limiting**: Upload multiple files to trigger rate limit
+5. **Retry Mechanisms**: Test failed job retry functionality
+6. **Error Handling**: Test various error scenarios 

@@ -57,8 +57,12 @@ export class FileProcessingProcessor {
       // Simulate file processing with various operations
       const extractedData = await this.processFile(filepath, filename);
 
-      // Simulate processing time (1 minute)
-      const processingTime = 60000;
+      // Configurable processing time via environment variables
+      const minTime = parseInt(process.env.FILE_PROCESSING_MIN_TIME || '3000'); // Default 3 seconds
+      const maxTime = parseInt(process.env.FILE_PROCESSING_MAX_TIME || '5000'); // Default 5 seconds
+      const processingTime = Math.random() * (maxTime - minTime) + minTime;
+      
+      this.logger.log(`Processing ${filename} for ${Math.round(processingTime)}ms`);
       await new Promise(resolve => setTimeout(resolve, processingTime));
 
       // Update file status to processed and save extracted data

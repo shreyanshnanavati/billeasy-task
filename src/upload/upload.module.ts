@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MulterModule } from '@nestjs/platform-express';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { UploadController } from './upload.controller';
@@ -11,6 +12,10 @@ import { QueueModule } from '../queue/queue.module';
   imports: [
     AuthModule,
     QueueModule,
+    ThrottlerModule.forRoot([{
+      ttl: 60000, // 1 minute
+      limit: 10, // 10 requests per minute (global default)
+    }]),
     MulterModule.register({
       storage: diskStorage({
         destination: './uploads',
