@@ -3,8 +3,8 @@
 ### Variables
 # For local development: http://localhost:3000
 # For Docker setup: http://localhost:3002
-@baseUrl = http://localhost:3000
-@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyIiwiZW1haWwiOiJ0ZXN0QGV4YW1wbGUuY29tIiwiaWF0IjoxNzQ4MjcxNTU3LCJleHAiOjE3NDgzNTc5NTd9.fCuPm5dgpo678btZfwgAQ-WaHuxA4ahasxdzp-giQn8
+@baseUrl = http://localhost:3002
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzIiwiZW1haWwiOiJ0ZXN0MkBleGFtcGxlLmNvbSIsImlhdCI6MTc0ODI3NDk2OCwiZXhwIjoxNzQ4MzYxMzY4fQ.l0_OS1z8qtgarWx_JODqSiPQr5JzenAxXxcMQSgC2C4
 
 ### 0. Health Check (No Authentication Required)
 GET {{baseUrl}}/health
@@ -92,30 +92,54 @@ Authorization: Bearer {{token}}
 
 ###
 
-### 10. Get queue status with details
+### 10. Get queue status with details (SYSTEM-WIDE - NOT USER-SPECIFIC)
 GET {{baseUrl}}/queue/status/file-processing
 
 ###
 
-### 11. Get all failed jobs in queue
+### 11. Get MY queue status (SECURE - USER-SPECIFIC)
+GET {{baseUrl}}/queue/status/my-jobs
+Authorization: Bearer {{token}}
+
+###
+
+### 12. Get all failed jobs in queue (INSECURE - ALL USERS)
 GET {{baseUrl}}/queue/failed-jobs
 Authorization: Bearer {{token}}
 
 ###
 
-### 12. Retry a specific job by ID (replace JOB_ID with actual job ID)
+### 13. Get MY failed jobs only (SECURE - USER-SPECIFIC)
+GET {{baseUrl}}/queue/my-failed-jobs
+Authorization: Bearer {{token}}
+
+###
+
+### 14. Retry a specific job by ID (INSECURE - ANY JOB)
 POST {{baseUrl}}/queue/retry-job/1
 Authorization: Bearer {{token}}
 
 ###
 
-### 13. Retry all failed jobs
+### 15. Retry MY specific job by ID (SECURE - WITH OWNERSHIP CHECK)
+POST {{baseUrl}}/queue/retry-my-job/1
+Authorization: Bearer {{token}}
+
+###
+
+### 16. Retry all failed jobs (INSECURE - ALL USERS)
 POST {{baseUrl}}/queue/retry-all-failed
 Authorization: Bearer {{token}}
 
 ###
 
-### 14. Test rate limiting - Upload multiple files quickly (should be limited after 5 uploads)
+### 17. Retry all MY failed jobs (SECURE - USER-SPECIFIC)
+POST {{baseUrl}}/queue/retry-all-my-failed
+Authorization: Bearer {{token}}
+
+###
+
+### 18. Test rate limiting - Upload multiple files quickly (should be limited after 5 uploads)
 POST {{baseUrl}}/upload/file
 Authorization: Bearer {{token}}
 Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
@@ -192,5 +216,70 @@ Content-Type: text/plain
 
 This upload should be rate limited
 ------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+###
+
+### SECURITY TESTING SECTION
+### Test the difference between secure and insecure endpoints
+
+### 19. Test user profile access (should only show current user)
+GET {{baseUrl}}/auth/profile
+Authorization: Bearer {{token}}
+
+###
+
+### 20. Create a second user to test security isolation
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "user2@example.com",
+  "password": "password123"
+}
+
+###
+
+### 21. Login as second user
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "user2@example.com",
+  "password": "password123"
+}
+
+# Copy the token from response above and use it in the next requests to test isolation
+
+###
+
+### 22. Upload file as second user (use token from step 21)
+# POST {{baseUrl}}/upload/file
+# Authorization: Bearer <SECOND_USER_TOKEN>
+# Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+# 
+# ------WebKitFormBoundary7MA4YWxkTrZu0gW
+# Content-Disposition: form-data; name="file"; filename="second-user-file.txt"
+# Content-Type: text/plain
+# 
+# This file belongs to the second user
+# ------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+###
+
+### 23. Test that users can only see their own files
+# GET {{baseUrl}}/upload/files
+# Authorization: Bearer <SECOND_USER_TOKEN>
+
+###
+
+### 24. Test that users can only see their own queue status
+# GET {{baseUrl}}/queue/status/my-jobs
+# Authorization: Bearer <SECOND_USER_TOKEN>
+
+###
+
+### 25. Test that users can only see their own failed jobs
+# GET {{baseUrl}}/queue/my-failed-jobs
+# Authorization: Bearer <SECOND_USER_TOKEN>
 
 ### 

@@ -328,6 +328,8 @@ Authorization: Bearer <jwt_token>
 #### GET /queue/status/file-processing
 Get file processing queue status with detailed information.
 
+**⚠️ SECURITY WARNING**: This endpoint exposes system-wide queue information and is not user-specific. Consider using the secure alternative `/queue/status/my-jobs` for user-specific data.
+
 **Response:**
 ```json
 {
@@ -373,8 +375,44 @@ Get file processing queue status with detailed information.
 }
 ```
 
+#### GET /queue/status/my-jobs 🔒
+Get queue status filtered by authenticated user (SECURE).
+
+**Headers:**
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Response:**
+```json
+{
+  "queue": "file-processing",
+  "userId": "1",
+  "waiting": 1,
+  "active": 0,
+  "completed": 5,
+  "failed": 0,
+  "details": {
+    "waiting": [
+      {
+        "id": "124",
+        "data": {
+          "filename": "my-pending.txt",
+          "filepath": "uploads/file-124.txt",
+          "userId": "1"
+        }
+      }
+    ],
+    "active": [],
+    "failed": []
+  }
+}
+```
+
 #### GET /queue/failed-jobs
 Get all failed jobs in the queue (requires authentication).
+
+**⚠️ SECURITY WARNING**: This endpoint returns ALL failed jobs across all users. Use `/queue/my-failed-jobs` for user-specific failed jobs.
 
 **Headers:**
 ```
@@ -401,8 +439,40 @@ Authorization: Bearer <jwt_token>
 }
 ```
 
+#### GET /queue/my-failed-jobs 🔒
+Get failed jobs filtered by authenticated user (SECURE).
+
+**Headers:**
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Response:**
+```json
+{
+  "failedJobs": [
+    {
+      "id": "122",
+      "data": {
+        "filename": "my-failed.txt",
+        "filepath": "uploads/file-122.txt",
+        "userId": "1"
+      },
+      "failedReason": "File not found",
+      "attemptsMade": 3,
+      "processedOn": 1640995200000,
+      "finishedOn": 1640995260000
+    }
+  ],
+  "userId": "1",
+  "count": 1
+}
+```
+
 #### POST /queue/retry-job/:jobId
 Retry a specific failed job by job ID (requires authentication).
+
+**⚠️ SECURITY WARNING**: This endpoint allows retrying ANY job by ID without user verification. Use `/queue/retry-my-job/:jobId` for secure job retry with ownership verification.
 
 **Headers:**
 ```
@@ -425,8 +495,34 @@ Authorization: Bearer <jwt_token>
 }
 ```
 
+#### POST /queue/retry-my-job/:jobId 🔒
+Securely retry a failed job with ownership verification (SECURE).
+
+**Headers:**
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Response:**
+```json
+{
+  "message": "Job retry initiated",
+  "jobId": "122"
+}
+```
+
+**Error Responses:**
+```json
+{
+  "error": "Access denied: You can only retry your own jobs",
+  "success": false
+}
+```
+
 #### POST /queue/retry-all-failed
 Retry all failed jobs in the queue (requires authentication).
+
+**⚠️ SECURITY WARNING**: This endpoint retries ALL failed jobs across all users. Use `/queue/retry-all-my-failed` to retry only your own failed jobs.
 
 **Headers:**
 ```
@@ -438,6 +534,23 @@ Authorization: Bearer <jwt_token>
 {
   "message": "Retried 3 failed jobs",
   "count": 3
+}
+```
+
+#### POST /queue/retry-all-my-failed 🔒
+Securely retry all failed jobs belonging to authenticated user (SECURE).
+
+**Headers:**
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Response:**
+```json
+{
+  "message": "Retried 2 failed jobs for user",
+  "count": 2,
+  "userId": "1"
 }
 ```
 
@@ -539,6 +652,38 @@ The file processing time can be configured via environment variables for testing
 - Rate limiting prevents abuse
 - File type validation (configurable)
 - Path traversal protection
+
+### Queue Security Implementation
+
+The queue system provides both legacy and secure endpoints for backward compatibility:
+
+#### 🔒 Secure Endpoints (Recommended)
+These endpoints implement proper user isolation and should be used in production:
+
+- `GET /queue/status/my-jobs` - User-specific queue status
+- `GET /queue/my-failed-jobs` - User's failed jobs only
+- `POST /queue/retry-my-job/:jobId` - Retry with ownership verification
+- `POST /queue/retry-all-my-failed` - Retry user's failed jobs only
+
+#### ⚠️ Legacy Endpoints (Security Warnings)
+These endpoints have security limitations and should be avoided or restricted:
+
+- `GET /queue/status/file-processing` - Exposes system-wide data
+- `GET /queue/failed-jobs` - Shows all users' failed jobs
+- `POST /queue/retry-job/:jobId` - No ownership verification
+- `POST /queue/retry-all-failed` - Affects all users' jobs
+
+#### Security Features
+- **User Isolation**: Secure endpoints filter data by authenticated user ID
+- **Ownership Verification**: Job operations verify user owns the resource
+- **Access Control**: JWT authentication required for all protected endpoints
+- **Data Filtering**: Database queries include user ID constraints
+
+#### Migration Strategy
+1. Use secure endpoints for new implementations
+2. Legacy endpoints maintained for backward compatibility
+3. Security warnings documented for legacy endpoints
+4. Plan migration to secure endpoints for existing clients
 
 ## Testing
 

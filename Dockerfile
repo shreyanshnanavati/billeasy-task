@@ -23,4 +23,4 @@ RUN mkdir -p uploads prisma
 EXPOSE 3002
 
 # Start the application with database migration
-CMD ["sh", "-c", "npx prisma migrate deploy && npm run start:prod"] 
+CMD ["sh", "-c", "npx prisma migrate deploy && npm run start:dev"] 

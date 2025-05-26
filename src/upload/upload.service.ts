@@ -3,6 +3,18 @@ import { promises as fs } from 'fs';
 import { PrismaService } from '../prisma/prisma.service';
 import { QueueService } from '../queue/queue.service';
 
+/**
+ * File Upload Service
+ * 
+ * Handles all file upload business logic including:
+ * - File metadata storage and management
+ * - User-specific file operations with proper isolation
+ * - Background job management for file processing
+ * - File system operations and cleanup
+ * - Failed job retry mechanisms
+ * 
+ * All operations maintain strict user isolation for security.
+ */
 @Injectable()
 export class UploadService {
   constructor(
@@ -10,12 +22,25 @@ export class UploadService {
     private queueService: QueueService
   ) {}
 
+  /**
+   * Save File Metadata
+   * 
+   * Stores uploaded file information in database and initiates background processing.
+   * Associates file with the authenticated user for proper isolation.
+   * 
+   * @param file - Multer file object containing upload details
+   * @param userId - Authenticated user's ID as string
+   * @param title - Optional file title for organization
+   * @param description - Optional file description
+   * @returns Object containing saved file details and metadata
+   */
   async saveFileMetadata(
     file: Express.Multer.File, 
     userId: string, 
     title?: string, 
     description?: string
   ) {
+    // Create file record with user association for security isolation
     const savedFile = await this.prisma.file.create({
       data: {
         userId: parseInt(userId),
@@ -30,12 +55,13 @@ export class UploadService {
           select: {
             id: true,
             email: true,
+            // Exclude sensitive user data like password
           },
         },
       },
     });
 
-    // Add background job for file processing with file ID
+    // Initiate background processing job for the uploaded file
     await this.queueService.addFileProcessingJob({
       filename: file.filename,
       filepath: file.path,
@@ -59,6 +85,15 @@ export class UploadService {
     };
   }
 
+  /**
+   * Get File by ID
+   * 
+   * Retrieves file information by ID without user verification.
+   * Note: This method should be used carefully as it doesn't enforce user isolation.
+   * 
+   * @param id - File ID as string
+   * @returns File object with user details or null if not found
+   */
   async getFileById(id: string) {
     const file = await this.prisma.file.findUnique({
       where: { id: parseInt(id) },
@@ -67,6 +102,7 @@ export class UploadService {
           select: {
             id: true,
             email: true,
+            // Exclude sensitive user data
           },
         },
       },
@@ -85,6 +121,15 @@ export class UploadService {
     };
   }
 
+  /**
+   * Get File with Processing Jobs
+   * 
+   * Retrieves comprehensive file information including all associated processing jobs.
+   * Used for detailed status tracking and job history.
+   * 
+   * @param id - File ID as string
+   * @returns File object with jobs history or null if not found
+   */
   async getFileWithJobs(id: string) {
     const file = await this.prisma.file.findUnique({
       where: { id: parseInt(id) },
@@ -93,11 +138,12 @@ export class UploadService {
           select: {
             id: true,
             email: true,
+            // Exclude sensitive user data
           },
         },
         jobs: {
           orderBy: {
-            startedAt: 'desc',
+            startedAt: 'desc', // Most recent jobs first
           },
         },
       },
@@ -127,28 +173,41 @@ export class UploadService {
     };
   }
 
+  /**
+   * Get User Files with Pagination
+   * 
+   * Retrieves paginated list of files belonging to a specific user.
+   * Enforces user isolation by filtering on userId.
+   * 
+   * @param userId - User ID as string for filtering
+   * @param page - Page number for pagination (1-based)
+   * @param limit - Number of items per page
+   * @returns Object containing files array and pagination metadata
+   */
   async getUserFiles(userId: string, page: number = 1, limit: number = 10) {
     const skip = (page - 1) * limit;
     
+    // Execute parallel queries for files and total count for efficiency
     const [files, total] = await Promise.all([
       this.prisma.file.findMany({
-        where: { userId: parseInt(userId) },
+        where: { userId: parseInt(userId) }, // Critical: Filter by user ID for isolation
         include: {
           user: {
             select: {
               id: true,
               email: true,
+              // Exclude sensitive user data
             },
           },
         },
         orderBy: {
-          uploadedAt: 'desc',
+          uploadedAt: 'desc', // Most recent files first
         },
         skip,
         take: limit,
       }),
       this.prisma.file.count({
-        where: { userId: parseInt(userId) },
+        where: { userId: parseInt(userId) }, // Count only user's files
       }),
     ]);
 
@@ -177,6 +236,15 @@ export class UploadService {
     };
   }
 
+  /**
+   * Delete File
+   * 
+   * Removes file from both filesystem and database.
+   * Handles cleanup gracefully if physical file is missing.
+   * 
+   * @param id - File ID as string
+   * @returns Boolean indicating success of deletion
+   */
   async deleteFile(id: string): Promise<boolean> {
     try {
       const file = await this.prisma.file.findUnique({
@@ -185,14 +253,14 @@ export class UploadService {
 
       if (!file) return false;
 
-      // Delete physical file
+      // Attempt to delete physical file from filesystem
       try {
         await fs.unlink(file.storagePath);
       } catch (error) {
         console.warn('Physical file not found, continuing with database deletion');
       }
 
-      // Remove from database
+      // Remove file record from database
       await this.prisma.file.delete({
         where: { id: parseInt(id) },
       });
@@ -204,6 +272,14 @@ export class UploadService {
     }
   }
 
+  /**
+   * Get All Files (Admin Function)
+   * 
+   * Retrieves all files across all users.
+   * WARNING: This method bypasses user isolation and should only be used by admin functions.
+   * 
+   * @returns Array of all files in the system
+   */
   async getAllFiles() {
     const files = await this.prisma.file.findMany({
       include: {
@@ -211,6 +287,7 @@ export class UploadService {
           select: {
             id: true,
             email: true,
+            // Exclude sensitive user data
           },
         },
       },
@@ -230,27 +307,45 @@ export class UploadService {
     }));
   }
 
+  /**
+   * Ensure Upload Directory Exists
+   * 
+   * Creates the uploads directory if it doesn't exist.
+   * Used during application initialization.
+   */
   async ensureUploadDirectory(): Promise<void> {
     const uploadDir = './uploads';
     try {
       await fs.access(uploadDir);
     } catch {
+      // Directory doesn't exist, create it
       await fs.mkdir(uploadDir, { recursive: true });
     }
   }
 
+  /**
+   * Retry Failed Job
+   * 
+   * Initiates retry for failed file processing jobs.
+   * Includes strict ownership verification for security.
+   * 
+   * @param fileId - File ID as string
+   * @param userId - User ID for ownership verification
+   * @returns Object containing retry status and job information
+   * @throws Error if file not found, access denied, or no failed jobs exist
+   */
   async retryFailedJob(fileId: string, userId: string) {
-    // Find the file and verify ownership
+    // Find file with ownership verification and failed jobs
     const file = await this.prisma.file.findFirst({
       where: {
         id: parseInt(fileId),
-        userId: parseInt(userId),
+        userId: parseInt(userId), // Critical: Verify user owns the file
       },
       include: {
         jobs: {
           where: { status: 'failed' },
           orderBy: { startedAt: 'desc' },
-          take: 1,
+          take: 1, // Get most recent failed job
         },
       },
     });
@@ -263,13 +358,13 @@ export class UploadService {
       throw new Error('No failed jobs found for this file');
     }
 
-    // Reset file status to uploaded
+    // Reset file status to allow reprocessing
     await this.prisma.file.update({
       where: { id: file.id },
       data: { status: 'uploaded' },
     });
 
-    // Add a new job for processing
+    // Create new processing job for retry
     const job = await this.queueService.addFileProcessingJob({
       filename: file.originalFilename,
       filepath: file.storagePath,
@@ -284,22 +379,32 @@ export class UploadService {
     };
   }
 
+  /**
+   * Get Failed Jobs for User
+   * 
+   * Retrieves all files with failed processing jobs for a specific user.
+   * Used for monitoring and retry functionality.
+   * 
+   * @param userId - User ID as string for filtering
+   * @returns Array of files with failed jobs and error details
+   */
   async getFailedJobs(userId: string) {
     const failedFiles = await this.prisma.file.findMany({
       where: {
-        userId: parseInt(userId),
+        userId: parseInt(userId), // Filter by user for isolation
         status: 'failed',
       },
       include: {
         jobs: {
           where: { status: 'failed' },
           orderBy: { startedAt: 'desc' },
-          take: 1,
+          take: 1, // Get most recent failed job per file
         },
         user: {
           select: {
             id: true,
             email: true,
+            // Exclude sensitive user data
           },
         },
       },
