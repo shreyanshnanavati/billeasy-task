@@ -1,26 +1,39 @@
 ### Enhanced API Testing with Pagination, Retry, and Rate Limiting
 
 ### Variables
+# For local development: http://localhost:3000
+# For Docker setup: http://localhost:3002
 @baseUrl = http://localhost:3000
-@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiZW1haWwiOiJ0ZXN0QGV4YW1wbGUuY29tIiwiaWF0IjoxNzQ4MjY4NzgwLCJleHAiOjE3NDgzNTUxODB9.lJhpittomxKRr2Rs-y8PQusuGbaSKKMPqrVpTm4Cbow
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyIiwiZW1haWwiOiJ0ZXN0QGV4YW1wbGUuY29tIiwiaWF0IjoxNzQ4MjcxNTU3LCJleHAiOjE3NDgzNTc5NTd9.fCuPm5dgpo678btZfwgAQ-WaHuxA4ahasxdzp-giQn8
 
 ### 0. Health Check (No Authentication Required)
 GET {{baseUrl}}/health
 
 ###
 
-### 1. Login to get fresh token
-POST {{baseUrl}}/auth/login
+### 1. Register a new user (if needed)
+POST {{baseUrl}}/auth/register
 Content-Type: application/json
 
 {
-  "email": "test@example.com",
+  "email": "test2@example.com",
   "password": "password123"
 }
 
 ###
 
-### 2. Upload a file (rate limited - 5 per minute)
+### 2. Login to get fresh token
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "test2@example.com",
+  "password": "password123"
+}
+
+###
+
+### 3. Upload a file (rate limited - 5 per minute)
 POST {{baseUrl}}/upload/file
 Authorization: Bearer {{token}}
 Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
@@ -43,66 +56,66 @@ It contains some sample content to test the enhanced features.
 
 ###
 
-### 3. Get files with pagination (page 1, limit 5)
+### 4. Get files with pagination (page 1, limit 5)
 GET {{baseUrl}}/upload/files?page=1&limit=5
 Authorization: Bearer {{token}}
 
 ###
 
-### 4. Get files with pagination (page 2, limit 3)
+### 5. Get files with pagination (page 2, limit 3)
 GET {{baseUrl}}/upload/files?page=2&limit=3
 Authorization: Bearer {{token}}
 
 ###
 
-### 5. Get files with default pagination (page 1, limit 10)
+### 6. Get files with default pagination (page 1, limit 10)
 GET {{baseUrl}}/upload/files
 Authorization: Bearer {{token}}
 
 ###
 
-### 6. Get failed jobs for current user
+### 7. Get failed jobs for current user
 GET {{baseUrl}}/upload/files/failed
 Authorization: Bearer {{token}}
 
 ###
 
-### 7. Retry a failed job (replace FILE_ID with actual failed file ID)
+### 8. Retry a failed job (replace FILE_ID with actual failed file ID)
 POST {{baseUrl}}/upload/files/1/retry
 Authorization: Bearer {{token}}
 
 ###
 
-### 8. Check specific file processing status (replace FILE_ID with actual file ID)
-GET {{baseUrl}}/upload/files/1
+### 9. Check specific file processing status (replace FILE_ID with actual file ID)
+GET {{baseUrl}}/upload/files/4
 Authorization: Bearer {{token}}
 
 ###
 
-### 9. Get queue status with details
+### 10. Get queue status with details
 GET {{baseUrl}}/queue/status/file-processing
 
 ###
 
-### 10. Get all failed jobs in queue
+### 11. Get all failed jobs in queue
 GET {{baseUrl}}/queue/failed-jobs
 Authorization: Bearer {{token}}
 
 ###
 
-### 11. Retry a specific job by ID (replace JOB_ID with actual job ID)
+### 12. Retry a specific job by ID (replace JOB_ID with actual job ID)
 POST {{baseUrl}}/queue/retry-job/1
 Authorization: Bearer {{token}}
 
 ###
 
-### 12. Retry all failed jobs
+### 13. Retry all failed jobs
 POST {{baseUrl}}/queue/retry-all-failed
 Authorization: Bearer {{token}}
 
 ###
 
-### 13. Test rate limiting - Upload multiple files quickly (should be limited after 5 uploads)
+### 14. Test rate limiting - Upload multiple files quickly (should be limited after 5 uploads)
 POST {{baseUrl}}/upload/file
 Authorization: Bearer {{token}}
 Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW

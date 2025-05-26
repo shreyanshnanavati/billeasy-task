@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  # Redis (using port 6380 to avoid conflict)
+  redis:
+    image: redis:7-alpine
+    container_name: billeasy-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Node.js Application (using port 3001 to avoid conflict)
+  app:
+    build: .
+    container_name: billeasy-app
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=production
+      - PORT=3002
+      - DATABASE_URL=file:./dev.db
+      - JWT_SECRET=docker-jwt-secret-change-in-production
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - FILE_PROCESSING_MIN_TIME=3000
+      - FILE_PROCESSING_MAX_TIME=5000
+    volumes:
+      - ./uploads:/app/uploads
+      - sqlite_data:/app/prisma
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  sqlite_data:
+  redis_data: 

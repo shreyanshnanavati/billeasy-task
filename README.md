@@ -24,7 +24,53 @@ npm run start:dev
 
 Application runs at `http://localhost:3000`
 
-## Environment Setup
+## Docker Setup (Alternative)
+
+For easy deployment and testing, you can run the application using Docker:
+
+**Quick Start:**
+```bash
+# Make setup script executable and run
+chmod +x docker-setup.sh
+./docker-setup.sh
+```
+
+**Manual Setup:**
+```bash
+# Build and start services
+docker-compose up --build -d
+
+# View logs
+docker-compose logs -f
+
+# Stop services
+docker-compose down
+```
+
+**Docker Configuration:**
+- **Application:** Runs on port 3002 (to avoid conflict with local setup on 3000)
+- **Redis:** Runs on port 6380 (to avoid conflict with local Redis on 6379)
+- **Database:** Uses SQLite (same as local setup)
+- **Volumes:** Persists uploads and database data
+
+**Environment Variables (Docker):**
+```env
+NODE_ENV=production
+PORT=3002
+DATABASE_URL=file:./dev.db
+JWT_SECRET=docker-jwt-secret-change-in-production
+REDIS_HOST=redis
+REDIS_PORT=6379
+FILE_PROCESSING_MIN_TIME=3000
+FILE_PROCESSING_MAX_TIME=5000
+```
+
+**Testing with Docker:**
+- Update base URL in `test-api-enhanced.http` to `http://localhost:3002`
+- All API endpoints work the same way
+- Database and uploads are persisted in Docker volumes
+
+## Environment Setup (Local Development)
 
 Create `.env` file:
 
